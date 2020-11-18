@@ -35,5 +35,4 @@ end
 axis(app.imageViewer,'image')
 
 drawnow
-
-bin.updateIntensity(app)
+bin.updateIBounds(app)
