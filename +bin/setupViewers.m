@@ -21,6 +21,9 @@ app.INTENSITY = plot(app.intensityViewer,[1,2],[0,0],'-k');
 app.lowerIBObj = yline(app.intensityViewer,0,'--r');
 app.upperIBObj = yline(app.intensityViewer,1,'--r');
 
+app.LBound = xline(app.intensityViewer,0,'--g');
+app.RBound = xline(app.intensityViewer,1,'--g');
+
 % Add the listeners to the ROI object
 addlistener(app.ROI,'MovingROI',@(src,evt)bin.roiListener(src,evt,app));
 addlistener(app.ROI,'ROIMoved',@(src,evt)bin.roiListener(src,evt,app));
