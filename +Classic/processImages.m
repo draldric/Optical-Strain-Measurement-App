@@ -1,12 +1,11 @@
 function processImages(app)
-tic
-% Convergence Weighting
-w = 1.2;
 % Error Allowance
 errTol = 5e-7;
 
 yData = app.IData;
 xData = 1:length(yData);
+app.FitLine.XData = xData;
+app.FitLine.YData = zeros(size(xData));
 
 f  = Classic.fitFunction(xData);
 Jf = Classic.fitJacobian(xData); 
@@ -28,6 +27,8 @@ for n = 1:app.totalImg
     cold = 1e10*ones(size(cnew));
 
     r  = @(c) yData(:) - f(c);
+    
+    % Convergence Weighting
     w = 1.2;
     while max(abs(cnew-cold))>errTol
         cold = cnew;
@@ -38,7 +39,9 @@ for n = 1:app.totalImg
             w = w-0.1;
         end
     end
-    
+    if ~mod(n,5)
+        app.FitLine.YData = f(cnew);
+    end
     if n > 1
         outputData(n,1:4) = [n,cnew(3),cnew(5),(cnew(5)-cnew(3))];
         outputData(n,5) = (outputData(n,4)-outputData(1,4))/outputData(1,4);
@@ -65,6 +68,3 @@ fprintf(fID,'Image\tx1 (Pixels)\tx2 (Pixels)\tDx (Pixels)\tStrain\n');
 fprintf(fID,'%05i\t%.6f\t%.6f\t%.6f\t%.6e\n',outputData');
 
 fclose(fID);
-
-disp('Done')
-toc

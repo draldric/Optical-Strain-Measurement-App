@@ -34,9 +34,9 @@ switch updateROI
     case  0 % No Update Needed
         % Do Nothing
     case -1 % Reset ROI
-        app.ROI.Position = [1,1,size(app.PROIMAGE,2)-1,size(app.PROIMAGE,1)-1];
+        app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
     case -2
-        app.ROI.Position = [1,1,size(app.PROIMAGE,2)-1,size(app.PROIMAGE,1)-1];
+        app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
         app.LBound.Value = 0;
         app.RBound.Value = size(app.PROIMAGE,2);
         app.IBounds = [0,1];

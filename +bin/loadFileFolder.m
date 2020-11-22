@@ -1,6 +1,10 @@
 function [] = loadFileFolder(app)
 [fileName,filePath] = uigetfile([fullfile(getenv('USERPROFILE'),'documents'),'\*.*']);
-figure(app.UIFigure)
+if isfield(app,'UIFigure')
+    figure(app.UIFigure)
+else
+    figure(app.Figure)
+end
 if fileName
     [~,fileName,fileExt] = fileparts(fileName);
     switch lower(fileExt(2:end))
