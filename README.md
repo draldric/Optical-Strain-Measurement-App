@@ -2,6 +2,9 @@
   Welcome to Optical-Strain-Measurement-App
 </h1>
 <p align="center">
+  <a href="https://github.com/draldric/Optical-Strain-Measurement-App/releases/tag/V1.0.0">
+    <img src="https://img.shields.io/badge/Current-V1.0.0-green">  
+  </a>
   <a href="/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-orange">
   </a>
