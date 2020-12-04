@@ -4,13 +4,27 @@ if nargin<2
 end
 switch updateI
     case 0
-        app.IData = sum(app.PROIMAGE.*double(createMask(app.ROI)),1)/...
-            max(sum(createMask(app.ROI),1))*size(app.PROIMAGE,1);
+        if app.toolboxes.imagePro
+            app.IData = sum(app.PROIMAGE.*double(createMask(app.ROI)),1)/...
+                max(sum(createMask(app.ROI),1))*size(app.PROIMAGE,1);
+        else
+            app.IData = zeros(1,size(app.PROIMAGE,2));
+            app.IData(app.LROI.Value:app.RROI.Value) = ...
+                mean(app.PROIMAGE(app.TROI.Value:app.BROI.Value,app.LROI.Value:app.RROI.Value))...
+                *size(app.PROIMAGE,1);
+        end
         app.IData(app.IData<app.lowerIBObj.Value) = app.lowerIBObj.Value;
         app.IData(app.IData>app.upperIBObj.Value) = app.upperIBObj.Value;
     case 1
-        app.IData = sum(app.PROIMAGE.*double(createMask(app.ROI)),1)/...
-            max(sum(createMask(app.ROI),1))*size(app.PROIMAGE,1);
+        if app.toolboxes.imagePro
+            app.IData = sum(app.PROIMAGE.*double(createMask(app.ROI)),1)/...
+                max(sum(createMask(app.ROI),1))*size(app.PROIMAGE,1);
+        else
+            app.IData = zeros(1,size(app.PROIMAGE,2));
+            app.IData(app.LROI.Value:app.RROI.Value) = ...
+                mean(app.PROIMAGE(app.TROI.Value:app.BROI.Value,app.LROI.Value:app.RROI.Value))...
+                *size(app.PROIMAGE,1);
+        end
         app.IData(app.IData<app.lowerIBObj.Value) = app.lowerIBObj.Value;
         app.IData(app.IData>app.upperIBObj.Value) = app.upperIBObj.Value;
         

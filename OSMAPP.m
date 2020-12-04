@@ -52,10 +52,20 @@ classdef OSMAPP < handle
         AutoButton              
         RightButton   
         FitLine
+        TopRoiButton
+        BottomRoiButton
+        LeftRoiButton
+        RightRoiButton
+        imageTelemetry
     end
     %% Properties
     properties (Access = public)
+        toolboxes = []; % Are Toolboxes Available
         ROI             % Region of Interest
+        LROI            % Left Region of Interest
+        RROI            % Right Region of Interest
+        TROI            % Top Region of Interest
+        BROI            % Bottom Region of Interest
         ROTATION = 0;   % Image Rotation
         IMAGE           % Image Object
         RAWIMAGE        % Raw Image Data
@@ -90,18 +100,6 @@ classdef OSMAPP < handle
             app.imageManipulation.Visible = 'off';
         end
         
-        function moveAllPanels(~)
-            % Moves all the panels to the 
-%             tmpPosition = app.Figure.Position;
-%             app.MainMenu.Position = [1,1,tmpPosition(3:4)];
-%             app.VideoConverter.Position = [1,1,tmpPosition(3:4)];
-%             app.VideoRecorder.Position = [1,1,tmpPosition(3:4)];
-%             app.osmClassic.Position = [1,1,tmpPosition(3:4)];
-%             app.osmClassic2D.Position = [1,1,tmpPosition(3:4)];
-%             app.osmLive.Position = [1,1,tmpPosition(3:4)];
-%             app.osmLive2D.Position = [1,1,tmpPosition(3:4)];
-        end
-        
         function resetVariables(app)
             app.totalImg  =  0;
             app.imageIdx  =  0;
@@ -112,30 +110,14 @@ classdef OSMAPP < handle
             app.invertColor.Value = false;
             app.RAWIMAGE = zeros(100);
             app.FitLine.XData = [1 2];
-            app.FitLine.XData = [0 0];
+            app.FitLine.YData = [0 0];
         end
     end
     %% Callbacks
     methods (Access = private)
         % Code that executes after component creation
         function startupFcn(app)
-            
-            if ispc
-                % Windows is not case-sensitive
-                onPath = contains(lower(path),lower(app.RESDIR));
-            else
-                onPath = contains(path,app.RESDIR);
-            end
-            
-            if ~onPath
-                addpath("res\")
-                delete(app);
-                OSMAPP;
-                return;
-            end
-            
-            app.moveAllPanels;
-            
+                        
             bin.setupViewers(app);
             
             app.openMainMenu;
@@ -165,10 +147,7 @@ classdef OSMAPP < handle
             app.CloseMenu.Enable = 'off';
             drawnow
         end
-        % Size changed function: Figure, intensityContainer
-        function UIFigureSizeChanged(app,~,~)
-            app.moveAllPanels;            
-        end
+        
         % Callback function: ExitMenu, Figure
         function UIFigureCloseRequest(app,~,~)
             opt.Interpreter = 'none';
@@ -183,6 +162,7 @@ classdef OSMAPP < handle
                     % Do not close the application
             end
         end
+        
         % Value changed function: invertColor
         function invertImage(app,~,~)
             bin.updateImage(app,0);
@@ -221,20 +201,38 @@ classdef OSMAPP < handle
 
         % Button pushed function: LowerLimitButton, UpperLimitButton
         function setIntensityLimit(app,~,event)
-            tmp = drawcrosshair(app.intensityViewer);
+            app.imageContainer.Visible = 'off';
+            if app.toolboxes.imagePro
+                tmp = drawcrosshair(app.intensityViewer);
+            else
+                axes(app.intensityViewer)
+                hold on
+                tmp.Position = ginput(1);
+            end
             newBound = tmp.Position(2)/size(app.PROIMAGE,1);
-            delete(tmp);
+            if app.toolboxes.imagePro
+                delete(tmp);
+            end
             switch event.Source.Tag
-                case "Upper"
+                case 'Upper'
                     if newBound > app.IBounds(1)
-                        app.IBounds(2) = newBound;
+                        if newBound > 1
+                            app.IBounds(2) = 1;
+                        else
+                            app.IBounds(2) = newBound;
+                        end
                     end
-                case "Lower"
+                case 'Lower'
                     if newBound < app.IBounds(2)
-                        app.IBounds(1) = newBound;
+                        if newBound < 0
+                            app.IBounds(1) = 0;
+                        else
+                            app.IBounds(1) = newBound;
+                        end
                     end
             end
             bin.updateIBounds(app);
+            app.imageContainer.Visible = 'on';
         end
 
         % Button pushed function: ResetLimitsButton
@@ -245,17 +243,33 @@ classdef OSMAPP < handle
 
         % Button pushed function: LeftButton, RightButton
         function setLRGuesses(app,~,event)
-            tmp = drawcrosshair(app.intensityViewer);
+            if app.toolboxes.imagePro
+                tmp = drawcrosshair(app.intensityViewer);
+            else
+                axes(app.intensityViewer)
+                hold on
+                tmp.Position = ginput(1);
+            end
             newGuess = tmp.Position(1);
-            delete(tmp);
+            if app.toolboxes.imagePro
+                delete(tmp);
+            end
             switch event.Source.Tag
-                case "Left"
+                case 'Left'
                     if newGuess < app.RBound.Value
-                        app.LBound.Value = newGuess;
+                        if newGuess < 1
+                            app.LBound.Value = 1;
+                        else
+                            app.LBound.Value = newGuess;
+                        end
                     end
-                case "Right"
+                case 'Right'
                     if newGuess > app.LBound.Value
-                        app.RBound.Value= newGuess;
+                        if newGuess > size(app.PROIMAGE,2)
+                            app.RBound.Value = size(app.PROIMAGE,2);
+                        else
+                            app.RBound.Value = newGuess;
+                        end
                     end
             end
         end
@@ -270,7 +284,85 @@ classdef OSMAPP < handle
 
         % Button pushed function: STARTButton
         function classicStart(app,~,~)
+            app.imageManipulation.Visible = 'off';
+            app.STARTButton.Visible = 'off';
             Classic.processImages(app);
+            app.imageManipulation.Visible = 'on';
+            app.STARTButton.Visible = 'on';
+            app.imageIdx = 0;
+            bin.readNextImage(app);
+            bin.updateImage(app,-2);
+            app.FitLine.XData = [1 2];
+            app.FitLine.YData = [0 0];
+            app.SaveMenu.Enable = 'on';
+        end
+        
+        % Button pushed function: TopRoiButton, BottomRoi Button,
+        % LeftRoiButton, RightRoiButton
+        function setROI(app,~,event)
+            app.intensityContainer.Visible = 'off';
+            axes(app.imageViewer)
+            hold on
+            newROI = round(ginput(1));
+            switch event.Source.Tag
+                case 'Top'
+                    if newROI(2) < app.BROI.Value
+                        if newROI(2) < 1
+                            app.TROI.Value = 1;
+                        else
+                            app.TROI.Value = newROI(2);
+                        end
+                    end
+                case 'Bottom'
+                    if newROI(2) > app.TROI.Value
+                        if newROI(2) > size(app.PROIMAGE,1)
+                            app.BROI.Value = size(app.PROIMAGE,1);
+                        else
+                            app.BROI.Value = newROI(2);
+                        end
+                    end
+                case 'Left'
+                    if newROI(1) < app.RROI.Value
+                        if newROI(1) < 1
+                            app.LROI.Value = 1;
+                        else
+                            app.LROI.Value = newROI(1);
+                        end
+                    end
+                case 'Right'
+                    if newROI(1) > app.LROI.Value
+                        if newROI(1) > size(app.PROIMAGE,2)
+                            app.RROI.Value = size(app.PROIMAGE,2);
+                        else
+                            app.RROI.Value = newROI(1);
+                        end
+                    end
+            end
+            bin.updateIBounds(app);
+            app.intensityContainer.Visible = 'on';
+        end
+        
+        % Menu selected function: SaveMenu
+        function saveMenuCallback(app,~,~)
+            [file, path, filetype] = uiputfile(...
+            {'*.dat','Dat File (*.dat)';...
+            '*.csv','csv File (*.csv)';...
+            '*.*','All Files (*.*)'},...
+            'Select File to Write Data',...
+            fullfile(getenv('userprofile'),'Documents',['OSMData_',datestr(clock,30),'.dat']));
+        if file
+            [~, file, ext] = fileparts(file);
+            if filetype==1 || strcmpi(ext,'.dat') % dat
+                copyfile(fullfile(getenv('temp'),"OSM-APP","tmp.dat"),...
+                    fullfile(path,[file,'.dat']),'f')
+            elseif filetype==2 || strcmpi(ext,'.csv') % dat
+                copyfile(fullfile(getenv('temp'),"OSM-APP","tmp.dat"),...
+                    fullfile(path,[file,'.csv']),'f')
+            else
+                copyfile(fullfile(getenv('temp'),"OSM-APP","tmp.dat"),...
+                    fullfile(path,[file,ext]),'f')
+            end
+        end
         end
     end
     %% Constructor/Destructor
@@ -278,6 +370,11 @@ classdef OSMAPP < handle
         function app = OSMAPP()
             h = findall(0,'tag','OSMAPP-V1');
             if isempty(h)
+                addpath('res\');
+                                
+                % Check to see if user has Toolboxes installed
+                bin.checkDependencies(app);
+                
                 % Create Figure and components
                 createCommonComponents(app)
                 createMainMenuComponents(app)
@@ -312,217 +409,279 @@ classdef OSMAPP < handle
     methods (Access = private)
         function createCommonComponents(app)
             % Create UIFigure and hide until all components are created
-            app.Figure = figure('Visible', 'off');
-            app.Figure.MenuBar = 'none';
-            app.Figure.AutoResizeChildren = 'off';
-            app.Figure.Position = [100 100 1260 720];
-            app.Figure.Name = 'MATLAB App';
-            app.Figure.Resize = 0;
-            app.Figure.CloseRequestFcn = @app.UIFigureCloseRequest;
-            app.Figure.Tag = 'OSMAPP-V1';
+            app.Figure = figure(...
+                'Visible', 'off',...
+                'MenuBar','none',...
+                'Position',[100 100 1260 720],...
+                'Name','OSM-Application',...
+                'NumberTitle','off',...
+                'Resize',1,...
+                'CloseRequestFcn',@app.UIFigureCloseRequest,...
+                'Tag','OSMAPP-V1');
 
             % Create FileMenu
-            app.FileMenu = uimenu(app.Figure);
-            app.FileMenu.Text = 'File';
+            app.FileMenu = uimenu(app.Figure,...
+                'Text','File');
 
             % Create NewMenu
-            app.NewMenu = uimenu(app.FileMenu);
-            app.NewMenu.MenuSelectedFcn = @app.newMenuCallback;
-            app.NewMenu.Enable = 'off';
-            app.NewMenu.Accelerator = 'n';
-            app.NewMenu.Text = 'New';
+            app.NewMenu = uimenu(app.FileMenu,...
+                'MenuSelectedFcn',@app.newMenuCallback,...
+                'Enable','off',...
+                'Accelerator','n',...
+                'Text','New');
 
             % Create OpenMenu
-            app.OpenMenu = uimenu(app.FileMenu);
-            app.OpenMenu.Visible = 'off';
-            app.OpenMenu.Accelerator = 'o';
-            app.OpenMenu.Text = 'Open...';
+            app.OpenMenu = uimenu(app.FileMenu,...
+                'Visible','off',...
+                'Accelerator','o',...
+                'Text','Open...');
 
             % Create SaveMenu
-            app.SaveMenu = uimenu(app.FileMenu);
-            app.SaveMenu.Enable = 'off';
-            app.SaveMenu.Accelerator = 's';
-            app.SaveMenu.Text = 'Save';
+            app.SaveMenu = uimenu(app.FileMenu,...
+                'MenuSelectedFcn',@app.saveMenuCallback,...
+                'Enable','off',...
+            	'Accelerator','s',...
+            	'Text','Save');
 
             % Create SaveAsMenu
-            app.SaveAsMenu = uimenu(app.FileMenu);
-            app.SaveAsMenu.Enable = 'off';
-            app.SaveAsMenu.Text = 'Save As...';
+            app.SaveAsMenu = uimenu(app.FileMenu,...
+            	'Enable','off',...
+            	'Text','Save As...');
 
             % Create CloseMenu
-            app.CloseMenu = uimenu(app.FileMenu);
-            app.CloseMenu.MenuSelectedFcn = @app.openMainMenu;
-            app.CloseMenu.Text = 'Close';
+            app.CloseMenu = uimenu(app.FileMenu,...
+            	'MenuSelectedFcn',@app.openMainMenu,...
+            	'Text','Close');
 
             % Create ExitMenu
-            app.ExitMenu = uimenu(app.FileMenu);
-            app.ExitMenu.MenuSelectedFcn = @app.UIFigureCloseRequest;
-            app.ExitMenu.Separator = 'on';
-            app.ExitMenu.Text = 'Exit';
+            app.ExitMenu = uimenu(app.FileMenu,...
+            	'MenuSelectedFcn',@app.UIFigureCloseRequest,...
+            	'Separator','on',...
+            	'Text','Exit');
 
             % Create EditMenu
-            app.EditMenu = uimenu(app.Figure);
-            app.EditMenu.Text = 'Edit';
+            app.EditMenu = uimenu(app.Figure,...
+            	'Text','Edit');
 
             % Create HelpMenu
-            app.HelpMenu = uimenu(app.Figure);
-            app.HelpMenu.Text = 'Help';
+            app.HelpMenu = uimenu(app.Figure,...
+            	'Text','Help');
 
             % Create AboutMenu
-            app.AboutMenu = uimenu(app.HelpMenu);
-            app.AboutMenu.Text = 'About';
+            app.AboutMenu = uimenu(app.HelpMenu,...
+            	'Text','About');
 
             % Create imageContainer
-            app.imageContainer = uipanel(app.Figure);
-            app.imageContainer.Units = 'Pixels';
-            app.imageContainer.AutoResizeChildren = 'off';
-            app.imageContainer.Position = [11 361 610 350];
+            app.imageContainer = uipanel(app.Figure,...
+            	'Units','Pixels',...
+                'AutoResizeChildren','off',...
+            	'Position',[11 361 610 350]);
 
             % Create imageViewer
-            app.imageViewer = axes(app.imageContainer);
+            app.imageViewer = axes(app.imageContainer,...
+            	'Units','normalized',...
+            	'FontName','Consolas',...
+            	'XTick',[],...
+            	'YTick',[],...
+            	'YTickLabel','',...
+            	'ZTick',[],...
+            	'FontSize',1,...
+            	'Position',[0 0 1 1]);
             app.imageViewer.Toolbar.Visible = 'off';
-            app.imageViewer.Units = 'normalized';
-            app.imageViewer.FontName = 'Consolas';
-            app.imageViewer.XTick = [];
-            app.imageViewer.YTick = [];
-            app.imageViewer.YTickLabel = '';
-            app.imageViewer.ZTick = [];
-            app.imageViewer.FontSize = 1;
-            app.imageViewer.Position = [0 0 1 1];
-
+            
             % Create intensityContainer
-            app.intensityContainer = uipanel(app.Figure);
-            app.intensityContainer.Units = 'Pixels';
-            app.intensityContainer.AutoResizeChildren = 'off';
-            app.intensityContainer.SizeChangedFcn = @app.UIFigureSizeChanged;
-            app.intensityContainer.Position = [11 11 610 350];
+            app.intensityContainer = uipanel(app.Figure,...
+                'Units','Pixels',...
+                'AutoResizeChildren','off',...
+                'Position',[11 11 610 350]);
 
             % Create intensityViewer
-            app.intensityViewer = axes(app.intensityContainer);
+            app.intensityViewer = axes(app.intensityContainer,...
+            	'Units','normalized',...
+            	'FontName','Consolas',...
+            	'XTick',[],...
+            	'YTick',[],...
+            	'YTickLabel','',...
+            	'ZTick',[],...
+            	'FontSize',1,...
+            	'Position',[0 0 1 1]);
             app.intensityViewer.Toolbar.Visible = 'off';
-            app.intensityViewer.Units = 'normalized';
-            app.intensityViewer.FontName = 'Consolas';
-            app.intensityViewer.XTick = [];
-            app.intensityViewer.YTick = [];
-            app.intensityViewer.YTickLabel = '';
-            app.intensityViewer.ZTick = [];
-            app.intensityViewer.FontSize = 1;
-            app.intensityViewer.Position = [0 0 1 1];
 
             % Create imageManipulation
-            app.imageManipulation = uipanel(app.Figure);
-            app.imageManipulation.Units = 'Pixels';
-            app.imageManipulation.AutoResizeChildren = 'off';
-            app.imageManipulation.TitlePosition = 'centertop';
-            app.imageManipulation.Title = 'OSM-Image Options';
-            app.imageManipulation.FontName = 'Consolas';
-            app.imageManipulation.FontSize = 20;
-            app.imageManipulation.Position = [641 361 610 350];
+            app.imageManipulation = uipanel(app.Figure,...
+                'Units','Pixels',...
+                'AutoResizeChildren','off',...
+                'TitlePosition','centertop',...
+                'Title','OSM-Image Options',...
+                'FontName','Consolas',...
+                'FontSize',20,...
+                'Position',[641 171 610 540]);
 
+            grid = bin.GridLayout([5,8],0.025);
+            
             % Create invertColor
-            app.invertColor = uicontrol(app.imageManipulation,'Style','checkbox');
-            app.invertColor.Callback = @app.invertImage;
-            app.invertColor.String = {'Invert Image'};
-            app.invertColor.FontName = 'Consolas';
-            app.invertColor.FontSize = 16;
-            app.invertColor.Units = 'normalize';
-            app.invertColor.Position = [0.025 0.8375 0.95 0.1375];
+            app.invertColor = uicontrol(app.imageManipulation,...
+                'Style','checkbox',...
+                'Callback',@app.invertImage,...
+                'String','Invert Image',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(4:5,7:8));
 
             % Create rotateCCW
-            app.rotateCCW = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.rotateCCW.Callback = @app.rotateImage;
-            app.rotateCCW.Tag = '+1';
-            app.rotateCCW.FontName = 'Consolas';
-            app.rotateCCW.FontSize = 16;
-            app.rotateCCW.Units = 'normalize';
-            app.rotateCCW.Position = [0.025 0.675 0.4625 0.1375];
-            app.rotateCCW.String = 'Rotate -';
+            app.rotateCCW = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.rotateImage,...
+                'Tag','+1',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(4,5:6),...
+                'String','Rotate -');
 
             % Create rotateCW
-            app.rotateCW = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.rotateCW.Callback = @app.rotateImage;
-            app.rotateCW.Tag = '-1';
-            app.rotateCW.FontName = 'Consolas';
-            app.rotateCW.FontSize = 16;
-            app.rotateCW.Units = 'normalize';
-            app.rotateCW.Position = [0.5125 0.675 0.4625 0.1375];
-            app.rotateCW.String = 'Rotate +';
+            app.rotateCW = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.rotateImage,...
+                'Tag','-1',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(5,5:6),...
+                'String','Rotate +');
 
             % Create ResetROIButton
-            app.ResetROIButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.ResetROIButton.Callback = @app.resetROI;
-            app.ResetROIButton.FontName = 'Consolas';
-            app.ResetROIButton.FontSize = 16;
-            app.ResetROIButton.Units = 'normalize';
-            app.ResetROIButton.Position = [0.025 0.5125 0.95 0.1375];
-            app.ResetROIButton.String = 'Reset ROI';
+            app.ResetROIButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.resetROI,...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(3,5:8),...
+                'String','<html>Reset<br /> ROI</html>');
 
             % Create UpperLimitButton
-            app.UpperLimitButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.UpperLimitButton.Callback = @app.setIntensityLimit;
-            app.UpperLimitButton.Tag = 'Upper';
-            app.UpperLimitButton.FontName = 'Consolas';
-            app.UpperLimitButton.FontSize = 16;
-            app.UpperLimitButton.Units = 'normalize';
-            app.UpperLimitButton.Position = [0.025 0.35 0.625 0.1375];
-            app.UpperLimitButton.String = 'Upper Limit';
+            app.UpperLimitButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setIntensityLimit,...
+                'Tag','Upper',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(1:2,4),...
+                'String','Upper Limit');
 
             % Create LowerLimitButton
-            app.LowerLimitButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.LowerLimitButton.Callback = @app.setIntensityLimit;
-            app.LowerLimitButton.Tag = 'Lower';
-            app.LowerLimitButton.FontName = 'Consolas';
-            app.LowerLimitButton.FontSize = 16;
-            app.LowerLimitButton.Units = 'normalize';
-            app.LowerLimitButton.Position = [0.025 0.1875 0.625 0.1375];
-            app.LowerLimitButton.String = 'Lower Limit';
+            app.LowerLimitButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setIntensityLimit,...
+                'Tag','Lower',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(1:2,3),...
+                'String','Lower Limit');
 
             % Create ResetLimitsButton
-            app.ResetLimitsButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.ResetLimitsButton.Callback = @app.resetIntensityLimit;
-            app.ResetLimitsButton.FontName = 'Consolas';
-            app.ResetLimitsButton.FontSize = 16;
-            app.ResetLimitsButton.Units = 'normalize';
-            app.ResetLimitsButton.Position = [0.675 0.1875 0.3 0.3];
-            app.ResetLimitsButton.String = {'Reset'; 'Limits'};
+            app.ResetLimitsButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.resetIntensityLimit,...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(3,3:4),...
+                'String','<html>Reset<br />Limits</html>');
 
             % Create LeftButton
-            app.LeftButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.LeftButton.Callback = @app.setLRGuesses;
-            app.LeftButton.Tag = 'Left';
-            app.LeftButton.FontName = 'Consolas';
-            app.LeftButton.FontSize = 16;
-            app.LeftButton.Units = 'normalize';
-            app.LeftButton.Position = [0.025 0.025 0.3 0.1375];
-            app.LeftButton.String = {'Left'};
+            app.LeftButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+            	'Callback',@app.setLRGuesses,...
+            	'Tag','Left',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+            	'Position',grid.getPosition(1,1:2),...
+            	'String',{'<html>Left<br />Guess</html>'});
 
             % Create AutoButton
-            app.AutoButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.AutoButton.Callback = @app.autoLRGuesses;
-            app.AutoButton.FontName = 'Consolas';
-            app.AutoButton.FontSize = 16;
-            app.AutoButton.Units = 'normalize';
-            app.AutoButton.Position = [0.35 0.025 0.3 0.1375];
-            app.AutoButton.String = {'Auto'};
+            app.AutoButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.autoLRGuesses,...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(3,1:2),...
+                'String',{'Auto'});
 
             % Create RightButton
-            app.RightButton = uicontrol(app.imageManipulation,'Style', 'pushbutton');
-            app.RightButton.Callback = @app.setLRGuesses;
-            app.RightButton.Tag = 'Right';
-            app.RightButton.FontName = 'Consolas';
-            app.RightButton.FontSize = 16;
-            app.RightButton.Units = 'normalize';
-            app.RightButton.Position = [0.675 0.025 0.3 0.1375];
-            app.RightButton.String = {'Right'};
-
+            app.RightButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setLRGuesses,...
+                'Tag','Right',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(2,1:2),...
+                'String',{'<html>Right<br />Guess</html>'});
+            
+            %Create TopRoiButton
+            app.TopRoiButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setROI,...
+                'Tag','Top',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(1:2,8),...
+                'String',{'Top ROI'});
+            
+            %Create BottomRoiButton
+            app.BottomRoiButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setROI,...
+                'Tag','Bottom',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(1:2,7),...
+                'String',{'Bottom ROI'});
+            
+            %Create LeftRoiButton
+            app.LeftRoiButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setROI,...
+                'Tag','Left',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(1,5:6),...
+                'String',{'<html>Left<br />ROI</html>'});
+            
+            %Create RightRoiButton
+            app.RightRoiButton = uicontrol(app.imageManipulation,...
+                'Style', 'pushbutton',...
+                'Callback',@app.setROI,...
+                'Tag','Right',...
+                'FontName','Consolas',...
+                'FontSize',16,...
+                'Units','normalize',...
+                'Position',grid.getPosition(2,5:6),...
+                'String',{'<html>Right<br />ROI</html>'});
+            
+            if  app.toolboxes.imagePro
+                app.TopRoiButton.Enable = 'off';
+                app.BottomRoiButton.Enable = 'off';
+                app.LeftRoiButton.Enable = 'off';
+                app.RightRoiButton.Enable = 'off';
+            end
         end
         function createMainMenuComponents(app)
             % Create MainMenu
-            app.MainMenu = uipanel(app.Figure);
-            app.MainMenu.Units = 'Pixels';
-            app.MainMenu.AutoResizeChildren = 'off';
-            app.MainMenu.TitlePosition = 'centertop';
-            app.MainMenu.Position = [1 1 1260 720];
+            app.MainMenu = uipanel(app.Figure,...
+            	'Units','normalized',...
+            	'TitlePosition','centertop',...
+            	'Position',[0 0 1 1]);
             
             % Create OSMSOFTWARESUITELabel
             app.OSMSOFTWARESUITELabel = uicontrol(app.MainMenu,'Style','text');
@@ -546,7 +705,6 @@ classdef OSMAPP < handle
             % Create VideoProgramsPanel
             app.VideoProgramsPanel = uipanel(app.MainMenu);
             app.VideoProgramsPanel.Units = 'normalized';
-            app.VideoProgramsPanel.AutoResizeChildren = 'off';
             app.VideoProgramsPanel.BorderType = 'none';
             app.VideoProgramsPanel.TitlePosition = 'centertop';
             app.VideoProgramsPanel.Title = 'Video Programs';
@@ -582,7 +740,6 @@ classdef OSMAPP < handle
             % Create VideoExtensometryPanel
             app.VideoExtensometryPanel = uipanel(app.MainMenu);
             app.VideoExtensometryPanel.Units = 'normalized';
-            app.VideoExtensometryPanel.AutoResizeChildren = 'off';
             app.VideoExtensometryPanel.BorderType = 'none';
             app.VideoExtensometryPanel.TitlePosition = 'centertop';
             app.VideoExtensometryPanel.Title = 'Video Extensometry';
@@ -592,7 +749,8 @@ classdef OSMAPP < handle
             app.VideoExtensometryPanel.FontSize = 24;
 
             % Create OSMClassic1DButton
-            app.OSMClassic1DButton = uicontrol(app.VideoExtensometryPanel,'Style', 'pushbutton');
+            app.OSMClassic1DButton = uicontrol(app.VideoExtensometryPanel,...
+                'Style', 'pushbutton');
             app.OSMClassic1DButton.Callback = @app.tmpTestFunc;
             app.OSMClassic1DButton.CData = imread('res/imageLines.png');
             app.OSMClassic1DButton.FontName = 'Consolas';
@@ -604,7 +762,8 @@ classdef OSMAPP < handle
             app.OSMClassic1DButton.String = 'OSM-Classic (1D)';
 
             % Create OSMClassic2DButton
-            app.OSMClassic2DButton = uicontrol(app.VideoExtensometryPanel,'Style', 'pushbutton');
+            app.OSMClassic2DButton = uicontrol(app.VideoExtensometryPanel,...
+                'Style', 'pushbutton');
             app.OSMClassic2DButton.CData = imread('res/imageDots.png');
             app.OSMClassic2DButton.FontName = 'Consolas';
             app.OSMClassic2DButton.FontSize = 18;
@@ -618,7 +777,6 @@ classdef OSMAPP < handle
             % Create LiveExtensometryPanel
             app.LiveExtensometryPanel = uipanel(app.MainMenu);
             app.LiveExtensometryPanel.Units = 'normalized';
-            app.LiveExtensometryPanel.AutoResizeChildren = 'off';
             app.LiveExtensometryPanel.BorderType = 'none';
             app.LiveExtensometryPanel.TitlePosition = 'centertop';
             app.LiveExtensometryPanel.Title = 'Live Extensometry';
@@ -654,58 +812,63 @@ classdef OSMAPP < handle
         function createClassicComponents(app)
             % Create osmClassic
             app.osmClassic = uipanel(app.Figure);
-            app.osmClassic.Units = 'Pixels';
-            app.osmClassic.AutoResizeChildren = 'off';
+            app.osmClassic.Units = 'normalized';
             app.osmClassic.TitlePosition = 'centertop';
-            app.osmClassic.Position = [1 1 1260 720];
+            app.osmClassic.Position = [0 0 1 1];
             
             % Create STARTButton
-            app.STARTButton = uicontrol(app.osmClassic,'Style','pushbutton');
+            app.STARTButton = uicontrol(app.osmClassic,...
+                'Style','pushbutton');
             app.STARTButton.Callback = @app.classicStart;
             app.STARTButton.FontName = 'Consolas';
             app.STARTButton.FontSize = 16;
-            app.STARTButton.Position = [901 97 65 42];
+            app.STARTButton.Position = [845 10 200 150];
             app.STARTButton.String = 'START';
         end
         function createClassicLiveComponents(app)
             % Create osmLive
             app.osmLive = uipanel(app.Figure);
-            app.osmLive.Units = 'Pixels';
-            app.osmLive.AutoResizeChildren = 'off';
+            app.osmLive.Units = 'normalized';
             app.osmLive.TitlePosition = 'centertop';
-            app.osmLive.Position = [1 1 1260 720];
+            app.osmLive.Position = [0 0 1 1];
         end
         function create2DComponents(app)
             % Create osmClassic2D
             app.osmClassic2D = uipanel(app.Figure);
-            app.osmClassic2D.Units = 'Pixels';
-            app.osmClassic2D.AutoResizeChildren = 'off';
+            app.osmClassic2D.Units = 'normalized';
             app.osmClassic2D.TitlePosition = 'centertop';
-            app.osmClassic2D.Position = [1 1 1260 720];
+            app.osmClassic2D.Position = [0 0 1 1];
         end
         function create2DLiveComponents(app)
             % Create osmLive2D
             app.osmLive2D = uipanel(app.Figure);
-            app.osmLive2D.Units = 'Pixels';
-            app.osmLive2D.AutoResizeChildren = 'off';
+            app.osmLive2D.Units = 'normalized';
             app.osmLive2D.TitlePosition = 'centertop';
-            app.osmLive2D.Position = [1 1 1260 720];
+            app.osmLive2D.Position = [0 0 1 1];
         end
         function createConverterComponents(app)
             % Create VideoConverter
             app.VideoConverter = uipanel(app.Figure);
-            app.VideoConverter.Units = 'Pixels';
-            app.VideoConverter.AutoResizeChildren = 'off';
+            app.VideoConverter.Units = 'normalized';
             app.VideoConverter.TitlePosition = 'centertop';
-            app.VideoConverter.Position = [1 1 1260 720];
-        end
+            app.VideoConverter.Position = [0 0 1 1];
+        end   
         function createRecorderComponents(app)
             % Create VideoRecorder
             app.VideoRecorder = uipanel(app.Figure);
-            app.VideoRecorder.Units = 'Pixels';
-            app.VideoRecorder.AutoResizeChildren = 'off';
+            app.VideoRecorder.Units = 'normalized';
             app.VideoRecorder.TitlePosition = 'centertop';
-            app.VideoRecorder.Position = [1 1 1260 720];
+            app.VideoRecorder.Position = [0 0 1 1];
+        end
+        function createTelemetryComponents(app)
+            app.imageTelemetry = uipanel(app.Figure,...
+                'Units','Pixels',...
+                'AutoResizeChildren','off',...
+                'TitlePosition','centertop',...
+                'Title','OSM-Image Telemetry',...
+                'FontName','Consolas',...
+                'FontSize',20,...
+                'Position',[641 361 610 350]);
         end
     end
 end

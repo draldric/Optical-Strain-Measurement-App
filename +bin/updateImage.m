@@ -18,25 +18,57 @@ end
 % Update the ROI
 switch updateROI
     case  2 %Rotate  90deg CW
-        app.ROI.Position = [size(app.PROIMAGE,2)+1 - app.ROI.Position(2) - app.ROI.Position(4),...
-                            app.ROI.Position(1),...
-                            app.ROI.Position(4),...
-                            app.ROI.Position(3)];
+        if app.toolboxes.imagePro
+            app.ROI.Position = [size(app.PROIMAGE,2)+1 - app.ROI.Position(2) - app.ROI.Position(4),...
+                                app.ROI.Position(1),...
+                                app.ROI.Position(4),...
+                                app.ROI.Position(3)];
+        else
+            tmp1 = app.TROI.Value;
+            app.TROI.Value = app.LROI.Value;
+            tmp2 = app.RROI.Value;
+            app.RROI.Value = size(app.PROIMAGE,2) + 1 - tmp1;
+            app.LROI.Value = size(app.PROIMAGE,2) + 1 - app.BROI.Value;
+            app.BROI.Value = tmp2;
+        end
         app.LBound.Value = 1;
         app.RBound.Value = size(app.PROIMAGE,2);
     case  1 %Rotate -90deg CW
-        app.ROI.Position = [app.ROI.Position(2),...
-                            size(app.PROIMAGE,1)+1 - app.ROI.Position(1) - app.ROI.Position(3),...
-                            app.ROI.Position(4),...
-                            app.ROI.Position(3)];
+        if app.toolboxes.imagePro
+            app.ROI.Position = [app.ROI.Position(2),...
+                                size(app.PROIMAGE,1)+1 - app.ROI.Position(1) - app.ROI.Position(3),...
+                                app.ROI.Position(4),...
+                                app.ROI.Position(3)];
+        else
+            tmp1 = app.TROI.Value;
+            app.TROI.Value = size(app.PROIMAGE,1) + 1 - app.RROI.Value;
+            tmp2 = app.LROI.Value;
+            app.RROI.Value = app.BROI.Value;
+            app.LROI.Value = tmp1;
+            app.BROI.Value = size(app.PROIMAGE,1) + 1 - tmp2;
+        end
         app.LBound.Value = 1;
         app.RBound.Value = size(app.PROIMAGE,2);
     case  0 % No Update Needed
         % Do Nothing
     case -1 % Reset ROI
-        app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
+        if app.toolboxes.imagePro
+            app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
+        else
+            app.TROI.Value = 1;
+            app.RROI.Value = size(app.PROIMAGE,2);
+            app.LROI.Value = 1;
+            app.BROI.Value = size(app.PROIMAGE,1);
+        end
     case -2
-        app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
+        if app.toolboxes.imagePro
+            app.ROI.Position = [0.5,0.5,size(app.PROIMAGE,2),size(app.PROIMAGE,1)];
+        else
+            app.TROI.Value = 1;
+            app.RROI.Value = size(app.PROIMAGE,2);
+            app.LROI.Value = 1;
+            app.BROI.Value = size(app.PROIMAGE,1);
+        end
         app.LBound.Value = 0;
         app.RBound.Value = size(app.PROIMAGE,2);
         app.IBounds = [0,1];
